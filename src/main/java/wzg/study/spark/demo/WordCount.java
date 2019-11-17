@@ -27,5 +27,7 @@ public class WordCount {
                 .mapToPair(word -> new Tuple2<>(word, 1))
                 .reduceByKey(Integer::sum)
                 .foreach(tuple -> System.out.println(tuple._1 + ": " + tuple._2));
+
+        sc.close();
     }
 }
