@@ -13,5 +13,6 @@ public class LineCount {
         lines.mapToPair(line -> new Tuple2<>(line, 1))
                 .reduceByKey(Integer::sum)
                 .foreach(tuple -> System.out.println("line: " + tuple._1 + ", times: " + tuple._2));
+        sc.close();
     }
 }
