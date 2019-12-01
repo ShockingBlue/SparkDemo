@@ -9,10 +9,14 @@ import org.apache.spark.ml.PipelineStage;
 import org.apache.spark.ml.classification.LogisticRegression;
 import org.apache.spark.ml.feature.HashingTF;
 import org.apache.spark.ml.feature.Tokenizer;
+import org.apache.spark.ml.linalg.DenseVector;
 import org.apache.spark.sql.*;
+import org.apache.spark.sql.api.java.UDF1;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import scala.Tuple3;
+import scala.Tuple4;
 import wzg.study.spark.demo.ml.bean.LineInfoResult;
 import wzg.study.spark.demo.ml.bean.TestLineInfo;
 import wzg.study.spark.demo.ml.bean.TrainLineInfo;
@@ -22,7 +26,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.apache.spark.sql.functions.col;
+import static org.apache.spark.sql.functions.*;
 
 public class WordAnalyze {
     private static Dataset<Row> createDataset(SparkSession session, List<TrainLineInfo> infoList) {
@@ -45,6 +49,7 @@ public class WordAnalyze {
         JavaSparkContext jsc = new JavaSparkContext(session.sparkContext());
         return jsc.parallelize(infoList);
     }
+
     public static void main(String[] args) {
         // get spark session
         val session = SparkUtil.getSparkSession();
@@ -93,14 +98,31 @@ public class WordAnalyze {
                 col("probability"),
                 col("prediction"));
         result.show();
+        result.printSchema();
 
-        List<LineInfoResult> resultList = model.transform(testDf).select(col("id"),
+        List<Row> resultList = result.collectAsList();
+        resultList.forEach(r -> {
+            System.out.println("id=" + r.get(0) + ", text="
+                    + r.get(1) + ", probability=" + r.get(2) + ", prediction=" + r.get(3));
+        });
+
+        UDF1<DenseVector, String> udf = v->{
+            return v.values()[0]+","+v.values()[1];
+        };
+
+        session.udf().register("vec2str", udf, DataTypes.StringType);
+
+        val testResult = model.transform(testDf).select(col("id"),
                 col("text"),
-                col("probability"),
+                functions.callUDF("vec2Str", col("probability").as("probability")),
                 col("prediction"))
-                .as(Encoders.bean(LineInfoResult.class))
-                .collectAsList();
-        resultList.forEach(System.out::println);
+//                .as(Encoders.bean(LineInfoResult.class))
+               .collectAsList();
+
+        testResult.forEach(r->{
+            System.out.println("id=" + r.get(0) + ", text="
+                    + r.get(1) + ", probability=" + r.get(2) + ", prediction=" + r.get(3));
+        });
 
         session.close();
     }
